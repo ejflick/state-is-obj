@@ -1,9 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:stateisobj/edit_note.dart';
 import 'package:stateisobj/notebook.dart';
 
-void main() {
-  final notebook = Notebook();
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final db = await openDatabase(
+      'notebook.db',
+      version: 1,
+      onCreate: (Database db, int version) async {
+        await db.execute(
+            'create table notes ('
+                'id INTEGER PRIMARY KEY, '
+                'title TEXT, '
+                'content TEXT)'
+        );
+      }
+  );
+
+  final notebook = DbNotebook(db);
+
   runApp(MyApp(notebook));
 }
 
@@ -21,6 +38,7 @@ class MyApp extends StatelessWidget {
         '/': (context) => HomePage(notebook: _notebook),
         '/edit': (context) {
           final note = ModalRoute.of(context)!.settings.arguments as Note;
+
           return EditNoteScreen(note: note);
         }
       },
@@ -59,8 +77,22 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(10.0),
-        child: ListView(
-          children: [...widget.notebook.notes().iterable().map(notePreview)]
+        child: FutureBuilder(
+          future: widget.notebook.notes().iterable(),
+          builder: (context, snapshot) {
+            if (snapshot.hasData) {
+              return ListView(
+                  children: [...snapshot.data!.map(notePreview)]
+              );
+            } else if (snapshot.hasError) {
+              debugPrintStack(stackTrace: snapshot.stackTrace);
+              return const Center(
+                child: Text('Error looking up notes'),
+              );
+            }
+
+            return const Center(child: CircularProgressIndicator());
+          }
         )
       ),
       floatingActionButton: newNote(),
@@ -69,9 +101,9 @@ class _HomePageState extends State<HomePage> {
 
   Widget newNote() {
     return FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).pushNamed(
+        onPressed: () async => Navigator.of(context).pushNamed(
             '/edit',
-            arguments: widget.notebook.createNote()
+            arguments: (await widget.notebook.createNote())
         ).then((_) =>
           // Force a redraw after a new note is added.
                 setState(() {}
