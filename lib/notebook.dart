@@ -59,7 +59,11 @@ final class DbNotes implements Notes {
   @override
   Future<Note> createNote() async {
     final id = await _db.insert('notes', {'content': '', 'title': ''});
-    return CachedNote(DbNote(_db, id), '', '');
+    return CachedNote(
+        DbNote(_db, id),
+        '',
+        ''
+    );
   }
 
   @override
